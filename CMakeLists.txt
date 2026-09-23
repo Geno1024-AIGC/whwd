@@ -81,8 +81,7 @@ target_link_libraries(whwd PRIVATE whwd_core)
 
 if(MSVC)
   target_link_options(whwd PRIVATE
-    "/MANIFEST:EMBED"
-    "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/manifest/whwd.manifest"
+    "/MANIFEST:NO"
     "/SUBSYSTEM:CONSOLE,6.01"
   )
 endif()
