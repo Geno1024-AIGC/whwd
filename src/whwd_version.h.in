@@ -1,0 +1,6 @@
+#ifndef WHWD_VERSION_H
+#define WHWD_VERSION_H
+
+#define WHWD_VERSION_STRING "@PROJECT_VERSION@"
+
+#endif
