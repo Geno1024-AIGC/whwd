@@ -13,13 +13,13 @@ Windows Hardware Detection — 类 mhwd 的 Windows 驱动检查与安装工具�
 - [x] 运行时特性探测（WUA / pnputil / OS 版本）
 - [x] Windows Update 驱动更新列表（IUpdateSearcher）
 - [x] CLI 参数解析 + JSON 输出
+- [x] GUI（Win32 CreateWindow + ListView，设备/更新双视图）
 - [x] GitHub Actions 构建（x86 / x64）
 
 未实现：
 
 - [ ] 驱动安装（按需提升 + pnputil / IUpdateInstaller）
 - [ ] 厂商适配器（Realtek、Intel，接口已预留）
-- [ ] GUI（Win32 CreateWindow 包装）
 - [ ] ARM64 构建
 
 ## 构建
@@ -52,6 +52,8 @@ whwd -h             帮助
 whwd -V             版本
 ```
 
+GUI（`whwd-gui.exe`）与 CLI 共享 core：设备枚举与更新检查在后台线程执行，不阻塞界面；安装按钮接入提权流程后即可用。
+
 ## 驱动来源
 
 | 来源 | 状态 |
@@ -68,7 +70,7 @@ whwd/
 │   ├── core/           # 静态库：设备枚举、特性探测、来源分发
 │   │   └── sources/    # 来源适配器（统一接口）
 │   ├── cli/            # whwd.exe，mhwd 风格参数 + JSON 输出
-│   └── gui/            # 未来：Win32 CreateWindow 包装
+│   └── gui/            # whwd-gui.exe，Win32 CreateWindow + ListView
 ├── manifest/           # UAC asInvoker + 视觉样式 + 系统兼容清单
 └── .github/workflows/
 ```
