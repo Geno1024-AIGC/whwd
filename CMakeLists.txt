@@ -64,6 +64,7 @@ target_link_libraries(whwd_core PUBLIC
 )
 
 configure_file(src/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc @ONLY)
+configure_file(src/gui/gui.rc.in ${CMAKE_CURRENT_BINARY_DIR}/gui.rc @ONLY)
 configure_file(src/whwd_version.h.in ${CMAKE_CURRENT_BINARY_DIR}/whwd_version.h @ONLY)
 
 add_executable(whwd src/cli/main.c ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
@@ -86,4 +87,24 @@ if(MSVC)
   )
 endif()
 
-install(TARGETS whwd RUNTIME DESTINATION .)
+add_executable(whwd-gui WIN32 src/gui/main.c ${CMAKE_CURRENT_BINARY_DIR}/gui.rc)
+
+target_include_directories(whwd-gui PRIVATE
+  src/core/include
+  ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+if(MSVC)
+  target_compile_options(whwd-gui PRIVATE /W4)
+endif()
+
+target_link_libraries(whwd-gui PRIVATE whwd_core comctl32)
+
+if(MSVC)
+  target_link_options(whwd-gui PRIVATE
+    "/MANIFEST:NO"
+    "/SUBSYSTEM:WINDOWS,6.01"
+  )
+endif()
+
+install(TARGETS whwd whwd-gui RUNTIME DESTINATION .)
