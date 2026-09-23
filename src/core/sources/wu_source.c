@@ -26,69 +26,76 @@ static int wu_check(const struct whwd_source *self, const whwd_features *feature
     if (count) *count = 0;
     if (!out || !count || !features || !features->wua) return 0;
 
-    HRESULT hr;
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    int com_initialized = SUCCEEDED(hr);
+    if (!com_initialized && hr != RPC_E_CHANGED_MODE) return 0;
+
     IUpdateSession *session = NULL;
+    IUpdateSearcher *searcher = NULL;
+    BSTR criteria = NULL;
+    ISearchResult *result = NULL;
+    IUpdateCollection *updates = NULL;
+    whwd_update *arr = NULL;
+    size_t n = 0;
+
     hr = CoCreateInstance(&CLSID_UpdateSession, NULL, CLSCTX_INPROC_SERVER,
                           &IID_IUpdateSession, (void **)&session);
-    if (FAILED(hr)) return 0;
+    if (FAILED(hr)) goto done;
 
-    IUpdateSearcher *searcher = NULL;
     hr = session->lpVtbl->CreateUpdateSearcher(session, &searcher);
-    session->lpVtbl->Release(session);
-    if (FAILED(hr)) return 0;
+    if (FAILED(hr)) goto done;
 
-    BSTR criteria = SysAllocString(L"IsInstalled=0 and Type='Driver'");
-    if (!criteria) {
-        searcher->lpVtbl->Release(searcher);
-        return 0;
-    }
+    criteria = SysAllocString(L"IsInstalled=0 and Type='Driver'");
+    if (!criteria) goto done;
 
-    ISearchResult *result = NULL;
     hr = searcher->lpVtbl->Search(searcher, criteria, &result);
-    SysFreeString(criteria);
-    searcher->lpVtbl->Release(searcher);
-    if (FAILED(hr)) return 0;
+    if (FAILED(hr)) goto done;
 
-    IUpdateCollection *updates = NULL;
     hr = result->lpVtbl->get_Updates(result, &updates);
-    result->lpVtbl->Release(result);
-    if (FAILED(hr)) return 0;
+    if (FAILED(hr) || !updates) goto done;
 
     long total = 0;
     if (FAILED(updates->lpVtbl->get_Count(updates, &total))) total = 0;
     if (total > WU_MAX_UPDATES) total = WU_MAX_UPDATES;
 
     if (total > 0) {
-        whwd_update *arr = (whwd_update *)calloc((size_t)total, sizeof(whwd_update));
-        size_t n = 0;
+        arr = (whwd_update *)calloc((size_t)total, sizeof(whwd_update));
+        if (arr) {
+            for (long i = 0; i < total; i++) {
+                IUpdate *item = NULL;
+                if (FAILED(updates->lpVtbl->get_Item(updates, i, &item))) continue;
 
-        for (long i = 0; i < total; i++) {
-            IUpdate *item = NULL;
-            if (FAILED(updates->lpVtbl->get_Item(updates, i, &item))) continue;
+                BSTR title = NULL;
+                hr = item->lpVtbl->get_Title(item, &title);
+                item->lpVtbl->Release(item);
+                if (FAILED(hr) || !title) continue;
 
-            BSTR title = NULL;
-            hr = item->lpVtbl->get_Title(item, &title);
-            item->lpVtbl->Release(item);
-            if (FAILED(hr) || !title) continue;
-
-            whwd_update *u = &arr[n];
-            snprintf(u->id, sizeof(u->id), "wu%ld", i);
-            memcpy(u->source, self->name, strlen(self->name) + 1);
-            WideCharToMultiByte(CP_UTF8, 0, title, -1,
-                                u->title, (int)sizeof(u->title), NULL, NULL);
-            SysFreeString(title);
-            n++;
+                whwd_update *u = &arr[n];
+                snprintf(u->id, sizeof(u->id), "wu%ld", i);
+                memcpy(u->source, self->name, strlen(self->name) + 1);
+                WideCharToMultiByte(CP_UTF8, 0, title, -1,
+                                    u->title, (int)sizeof(u->title), NULL, NULL);
+                SysFreeString(title);
+                n++;
+            }
+            if (n == 0) {
+                free(arr);
+                arr = NULL;
+            }
         }
-
-        if (n == 0) {
-            free(arr);
-            arr = NULL;
-        }
-        *out = arr;
-        *count = n;
     }
 
-    updates->lpVtbl->Release(updates);
+done:
+    if (criteria) SysFreeString(criteria);
+    if (searcher) searcher->lpVtbl->Release(searcher);
+    if (session) session->lpVtbl->Release(session);
+    if (result) result->lpVtbl->Release(result);
+    if (updates) updates->lpVtbl->Release(updates);
+
+    *out = arr;
+    *count = n;
+
+    if (com_initialized) CoUninitialize();
     return 0;
 }
 
