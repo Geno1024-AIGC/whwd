@@ -59,7 +59,6 @@ target_link_libraries(whwd_core PUBLIC
   advapi32
   ole32
   oleaut32
-  wuapi
   shell32
   version
 )
