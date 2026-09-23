@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "source.h"
+#include "sources/source.h"
 
 extern const whwd_source whwd_wu_source;
 extern const whwd_source whwd_realtek_source;
