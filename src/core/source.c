@@ -25,7 +25,7 @@ const char *whwd_source_name(size_t index)
 
 size_t whwd_source_count(void)
 {
-    return whwd_source_count;
+    return whwd_sources_count;
 }
 
 int whwd_check_updates(const whwd_features *features, whwd_update **out, size_t *count)
