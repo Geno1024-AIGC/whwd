@@ -26,4 +26,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: whwd-${{ matrix.arch }}
-          path: build/Release/whwd.exe
+          path: |
+            build/Release/whwd.exe
+            build/Release/whwd-gui.exe
