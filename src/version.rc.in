@@ -21,11 +21,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "whwd contributors"
             VALUE "FileDescription", "whwd - Windows Hardware Detection and driver updater"
-            VALUE "FileVersion", "@PROJECT_VERSION@.0"
+            VALUE "FileVersion", "@WHWD_VERSION_STRING@"
             VALUE "InternalName", "whwd"
             VALUE "OriginalFilename", "whwd.exe"
             VALUE "ProductName", "whwd"
-            VALUE "ProductVersion", "@PROJECT_VERSION@.0"
+            VALUE "ProductVersion", "@WHWD_VERSION_STRING@"
         END
     END
     BLOCK "VarFileInfo"
