@@ -9,11 +9,11 @@ Windows Hardware Detection — 类 mhwd 的 Windows 驱动检查与安装工具�
 
 骨架阶段（v0.1.0）。已实现：
 
-- [x] 设备枚举（SetupAPI，含当前驱动版本/日期/厂商）
+- [x] 设备枚举（SetupAPI，含当前驱动版本/日期/厂商/类别）
 - [x] 运行时特性探测（WUA / pnputil / OS 版本）
 - [x] Windows Update 驱动更新列表（IUpdateSearcher）
 - [x] CLI 参数解析 + JSON 输出
-- [x] GUI（Win32 CreateWindow + ListView，设备/更新双视图）
+- [x] GUI（Win32 CreateWindow + ListView，设备按类别分组）
 - [x] GitHub Actions 构建（x86 / x64）
 
 未实现：
