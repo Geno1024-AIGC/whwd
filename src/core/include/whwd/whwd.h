@@ -5,6 +5,7 @@
 
 #define WHWD_HWID_MAX       256
 #define WHWD_NAME_MAX       256
+#define WHWD_CLASS_MAX      128
 #define WHWD_SEC_MAX        64
 #define WHWD_VER_MAX        64
 #define WHWD_DATE_MAX       64
@@ -25,6 +26,7 @@ typedef enum whwd_source_status {
 typedef struct whwd_device {
     char hwid[WHWD_HWID_MAX];
     char name[WHWD_NAME_MAX];
+    char device_class[WHWD_CLASS_MAX];
     char manufacturer[WHWD_NAME_MAX];
     char service[WHWD_SEC_MAX];
     char driver_version[WHWD_VER_MAX];

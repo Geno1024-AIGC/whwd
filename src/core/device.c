@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <windows.h>
+#include <objbase.h>
 #include <setupapi.h>
 
 static int wstr_copy_utf8(const WCHAR *in, char *out, size_t outsz)
@@ -104,6 +105,28 @@ static void read_device_id(HDEVINFO devs, SP_DEVINFO_DATA *did, char *out, size_
     free(tmp);
 }
 
+static void read_class(HDEVINFO devs, SP_DEVINFO_DATA *did, char *out, size_t outsz)
+{
+    if (!out || outsz == 0) return;
+    out[0] = 0;
+
+    char guid_str[WHWD_CLASS_MAX] = {0};
+    read_prop(devs, did, SPDRP_CLASSGUID, guid_str, sizeof(guid_str));
+    if (!guid_str[0]) return;
+
+    WCHAR wguid[WHWD_CLASS_MAX];
+    if (MultiByteToWideChar(CP_UTF8, 0, guid_str, -1, wguid, WHWD_CLASS_MAX) <= 0)
+        return;
+
+    GUID guid;
+    if (CLSIDFromString(wguid, &guid) != S_OK) return;
+
+    WCHAR wclass[WHWD_CLASS_MAX];
+    if (!SetupDiGetClassDescriptionW(&guid, wclass, WHWD_CLASS_MAX)) return;
+
+    wstr_copy_utf8(wclass, out, outsz);
+}
+
 static void read_driver_registry(const char *driver_path, whwd_device *dev)
 {
     if (!driver_path || !driver_path[0]) return;
@@ -163,6 +186,7 @@ int whwd_list_devices(whwd_device **out, size_t *count)
             read_prop(devs, &did, SPDRP_DEVICEDESC, dev->name, sizeof(dev->name));
         read_prop(devs, &did, SPDRP_MFG, dev->manufacturer, sizeof(dev->manufacturer));
         read_prop(devs, &did, SPDRP_SERVICE, dev->service, sizeof(dev->service));
+        read_class(devs, &did, dev->device_class, sizeof(dev->device_class));
 
         WCHAR instance[WHWD_INSTANCE_MAX] = {0};
         if (SetupDiGetDeviceInstanceIdW(devs, &did, instance,
