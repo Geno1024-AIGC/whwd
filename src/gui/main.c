@@ -28,6 +28,9 @@ static int g_scanning_updates;
 static int g_view_mode;
 static int g_columns;
 
+static WCHAR g_group_names[128][WHWD_CLASS_MAX];
+static int g_group_count;
+
 enum {
     VIEW_NONE = 0,
     VIEW_DEVICES,
@@ -79,6 +82,58 @@ static void set_cell(HWND list, int row, int col, const char *text)
         ListView_SetItem(list, &item);
 }
 
+static void set_grouped_cell(HWND list, int row, int col, const char *text, int group_id)
+{
+    WCHAR wide[1024];
+    utf8_to_wide(text, wide, sizeof(wide) / sizeof(wide[0]));
+
+    LVITEMW item;
+    memset(&item, 0, sizeof(item));
+    item.mask = LVIF_TEXT | (col == 0 ? LVIF_GROUPID : 0);
+    item.iItem = row;
+    item.iSubItem = col;
+    item.pszText = wide;
+    item.iGroupId = group_id;
+
+    if (col == 0)
+        ListView_InsertItem(list, &item);
+    else
+        ListView_SetItem(list, &item);
+}
+
+static int group_ensure(HWND list, const char *class_name)
+{
+    WCHAR wide[WHWD_CLASS_MAX];
+    utf8_to_wide(class_name && class_name[0] ? class_name : "Other devices",
+                 wide, WHWD_CLASS_MAX);
+
+    for (int i = 0; i < g_group_count; i++) {
+        if (0 == _wcsicmp(g_group_names[i], wide))
+            return i + 1;
+    }
+
+    if (g_group_count >= (int)(sizeof(g_group_names) / sizeof(g_group_names[0])))
+        return 0;
+
+    LVGROUPW lg;
+    memset(&lg, 0, sizeof(lg));
+    lg.cbSize = sizeof(lg);
+    lg.mask = LVGF_HEADER | LVGF_GROUPID;
+    lg.pszHeader = wide;
+    lg.iGroupId = g_group_count + 1;
+    ListView_InsertGroup(list, -1, &lg);
+    wcsncpy(g_group_names[g_group_count], wide, WHWD_CLASS_MAX - 1);
+    g_group_names[g_group_count][WHWD_CLASS_MAX - 1] = 0;
+    g_group_count++;
+    return g_group_count;
+}
+
+static void groups_reset(HWND list)
+{
+    g_group_count = 0;
+    ListView_RemoveAllGroups(list);
+}
+
 static void set_status_text(const WCHAR *text)
 {
     SendMessageW(g_hwnd_status, SB_SETTEXT, 0, (LPARAM)text);
@@ -105,12 +160,14 @@ static void show_features(void)
 static void switch_view(int mode)
 {
     g_view_mode = mode;
+    groups_reset(g_hwnd_list);
     clear_list(g_hwnd_list);
 
     if (mode == VIEW_DEVICES) {
         add_column(g_hwnd_list, L"Name", 230);
         add_column(g_hwnd_list, L"Hardware ID", 210);
         add_column(g_hwnd_list, L"Driver version", 100);
+        add_column(g_hwnd_list, L"Class", 160);
     } else if (mode == VIEW_UPDATES) {
         add_column(g_hwnd_list, L"ID", 70);
         add_column(g_hwnd_list, L"Source", 130);
@@ -180,11 +237,14 @@ static void on_devices_done(size_t n, whwd_device *devs)
     switch_view(VIEW_DEVICES);
     for (size_t i = 0; i < n; i++) {
         const whwd_device *d = &devs[i];
-        set_cell(g_hwnd_list, (int)i, 0, d->name[0] ? d->name : d->hwid);
+        int gid = group_ensure(g_hwnd_list, d->device_class);
+        set_grouped_cell(g_hwnd_list, (int)i, 0, d->name[0] ? d->name : d->hwid, gid);
         set_cell(g_hwnd_list, (int)i, 1, d->hwid);
         set_cell(g_hwnd_list, (int)i, 2, d->driver_version[0] ? d->driver_version : "-");
+        set_cell(g_hwnd_list, (int)i, 3, d->device_class[0] ? d->device_class : "-");
     }
-    set_status_fmt(L"%u devices detected", (unsigned)n);
+    set_status_fmt(L"%u devices detected in %d classes",
+                   (unsigned)n, g_group_count);
     free(devs);
     g_scanning_devices = 0;
     EnableWindow(g_btn_refresh, TRUE);
@@ -298,7 +358,8 @@ int WINAPI wWinMain(HINSTANCE h_instance, HINSTANCE h_prev,
         WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
         8, 40, 700, 400, hwnd, NULL, h_instance, NULL);
     ListView_SetExtendedListViewStyle(g_hwnd_list,
-                                      LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+                                      LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES |
+                                          LVS_EX_GROUPVIEW);
 
     g_hwnd_status = CreateWindowW(STATUSCLASSNAMEW, NULL,
                                   WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
