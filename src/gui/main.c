@@ -9,6 +9,10 @@
 #include <windows.h>
 #include <commctrl.h>
 
+#ifndef LVS_EX_GROUPVIEW
+#define LVS_EX_GROUPVIEW 0x00010000
+#endif
+
 #define IDC_BTN_REFRESH 1001
 #define IDC_BTN_CHECK   1002
 #define IDC_BTN_INSTALL 1003
