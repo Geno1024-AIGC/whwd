@@ -2,6 +2,7 @@
 #include "whwd_version.h"
 
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
@@ -17,6 +18,16 @@
 #define IDC_BTN_CHECK   1002
 #define IDC_BTN_INSTALL 1003
 
+#define IDM_REFRESH       2001
+#define IDM_CHECK         2002
+#define IDM_INSTALL       2003
+#define IDM_EXIT          2004
+#define IDM_VIEW_DEVICES  2005
+#define IDM_VIEW_UPDATES  2006
+#define IDM_LANG_EN       2010
+#define IDM_LANG_ZH       2011
+#define IDM_ABOUT         2020
+
 #define WM_APP_DEVICES (WM_APP + 0)
 #define WM_APP_UPDATES (WM_APP + 1)
 
@@ -31,6 +42,12 @@ static int g_scanning_devices;
 static int g_scanning_updates;
 static int g_view_mode;
 static int g_columns;
+static int g_lang;
+
+static const WCHAR *tr(const WCHAR *en, const WCHAR *zh)
+{
+    return g_lang ? zh : en;
+}
 
 static WCHAR g_group_names[128][WHWD_CLASS_MAX];
 static int g_group_count;
@@ -168,15 +185,95 @@ static void switch_view(int mode)
     clear_list(g_hwnd_list);
 
     if (mode == VIEW_DEVICES) {
-        add_column(g_hwnd_list, L"Name", 230);
-        add_column(g_hwnd_list, L"Hardware ID", 210);
-        add_column(g_hwnd_list, L"Driver version", 100);
-        add_column(g_hwnd_list, L"Class", 160);
+        add_column(g_hwnd_list, tr(L"Name", L"名称"), 230);
+        add_column(g_hwnd_list, tr(L"Hardware ID", L"硬件 ID"), 210);
+        add_column(g_hwnd_list, tr(L"Driver version", L"驱动版本"), 100);
+        add_column(g_hwnd_list, tr(L"Class", L"类别"), 160);
     } else if (mode == VIEW_UPDATES) {
-        add_column(g_hwnd_list, L"ID", 70);
-        add_column(g_hwnd_list, L"Source", 130);
-        add_column(g_hwnd_list, L"Title", 500);
+        add_column(g_hwnd_list, tr(L"ID", L"ID"), 70);
+        add_column(g_hwnd_list, tr(L"Source", L"来源"), 130);
+        add_column(g_hwnd_list, tr(L"Title", L"标题"), 500);
     }
+}
+
+static HMENU build_menu(void)
+{
+    HMENU bar = CreateMenu();
+    HMENU m_file = CreatePopupMenu();
+    HMENU m_view = CreatePopupMenu();
+    HMENU m_lang = CreatePopupMenu();
+    HMENU m_help = CreatePopupMenu();
+
+    AppendMenuW(m_file, MF_STRING, IDM_REFRESH, tr(L"Refresh devices", L"刷新设备"));
+    AppendMenuW(m_file, MF_STRING, IDM_CHECK, tr(L"Check updates", L"检查更新"));
+    AppendMenuW(m_file, MF_STRING, IDM_INSTALL, tr(L"Install selected", L"安装所选"));
+    AppendMenuW(m_file, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(m_file, MF_STRING, IDM_EXIT, tr(L"Exit", L"退出"));
+
+    AppendMenuW(m_view, MF_STRING, IDM_VIEW_DEVICES, tr(L"Devices", L"设备"));
+    AppendMenuW(m_view, MF_STRING, IDM_VIEW_UPDATES, tr(L"Updates", L"更新"));
+
+    AppendMenuW(m_lang, MF_STRING | (g_lang == 0 ? MF_CHECKED : 0), IDM_LANG_EN,
+                L"English");
+    AppendMenuW(m_lang, MF_STRING | (g_lang != 0 ? MF_CHECKED : 0), IDM_LANG_ZH,
+                L"中文");
+
+    AppendMenuW(m_help, MF_STRING, IDM_ABOUT, tr(L"About", L"关于"));
+
+    AppendMenuW(bar, MF_POPUP, (UINT_PTR)m_file, tr(L"File", L"文件"));
+    AppendMenuW(bar, MF_POPUP, (UINT_PTR)m_view, tr(L"View", L"查看"));
+    AppendMenuW(bar, MF_POPUP, (UINT_PTR)m_lang, tr(L"Language", L"语言"));
+    AppendMenuW(bar, MF_POPUP, (UINT_PTR)m_help, tr(L"Help", L"帮助"));
+    return bar;
+}
+
+static const WCHAR *column_label(int col)
+{
+    switch (g_view_mode) {
+    case VIEW_DEVICES:
+        if (col == 0) return tr(L"Name", L"名称");
+        if (col == 1) return tr(L"Hardware ID", L"硬件 ID");
+        if (col == 2) return tr(L"Driver version", L"驱动版本");
+        return tr(L"Class", L"类别");
+    case VIEW_UPDATES:
+        if (col == 0) return tr(L"ID", L"ID");
+        if (col == 1) return tr(L"Source", L"来源");
+        return tr(L"Title", L"标题");
+    default:
+        return L"";
+    }
+}
+
+static void set_window_title(HWND hwnd)
+{
+    WCHAR version_wide[64];
+    WCHAR build_wide[64];
+    WCHAR title[512];
+    utf8_to_wide(WHWD_VERSION_STRING, version_wide, 64);
+    utf8_to_wide(WHWD_BUILD_TIME_STRING, build_wide, 64);
+    swprintf(title, 512, L"whwd - %s %s (build %s)",
+             tr(L"Windows Hardware Detection", L"Windows 硬件检测"),
+             version_wide, build_wide);
+    SetWindowTextW(hwnd, title);
+}
+
+static void set_language(HWND hwnd, int lang)
+{
+    g_lang = lang;
+    HMENU menu = build_menu();
+    SetMenu(hwnd, menu);
+    DrawMenuBar(hwnd);
+    set_window_title(hwnd);
+
+    for (int i = 0; i < g_columns; i++) {
+        const WCHAR *label = column_label(i);
+        LVCOLUMNW col;
+        memset(&col, 0, sizeof(col));
+        col.mask = LVCF_TEXT;
+        col.pszText = (WCHAR *)label;
+        ListView_SetColumn(g_hwnd_list, i, &col);
+    }
+    show_features();
 }
 
 static DWORD WINAPI devices_worker(LPVOID param)
@@ -204,7 +301,7 @@ static void start_devices_scan(HWND hwnd)
     if (g_scanning_devices) return;
     g_scanning_devices = 1;
     EnableWindow(g_btn_refresh, FALSE);
-    set_status_text(L"Enumerating devices...");
+    set_status_text(tr(L"Enumerating devices...", L"正在枚举设备..."));
     CreateThread(NULL, 0, devices_worker, hwnd, 0, NULL);
 }
 
@@ -213,7 +310,7 @@ static void start_updates_scan(HWND hwnd)
     if (g_scanning_updates) return;
     g_scanning_updates = 1;
     EnableWindow(g_btn_check, FALSE);
-    set_status_text(L"Checking for updates...");
+    set_status_text(tr(L"Checking for updates...", L"正在检查更新..."));
     CreateThread(NULL, 0, updates_worker, hwnd, 0, NULL);
 }
 
@@ -247,7 +344,8 @@ static void on_devices_done(size_t n, whwd_device *devs)
         set_cell(g_hwnd_list, (int)i, 2, d->driver_version[0] ? d->driver_version : "-");
         set_cell(g_hwnd_list, (int)i, 3, d->device_class[0] ? d->device_class : "-");
     }
-    set_status_fmt(L"%u devices detected in %d classes",
+    set_status_fmt(tr(L"%u devices detected in %d classes",
+                      L"检测到 %u 个设备，%d 个类别"),
                    (unsigned)n, g_group_count);
     free(devs);
     g_scanning_devices = 0;
@@ -263,7 +361,8 @@ static void on_updates_done(size_t n, whwd_update *updates)
         set_cell(g_hwnd_list, (int)i, 1, u->source);
         set_cell(g_hwnd_list, (int)i, 2, u->title);
     }
-    set_status_fmt(L"%u updates available", (unsigned)n);
+    set_status_fmt(tr(L"%u updates available", L"有 %u 个可用更新"),
+                   (unsigned)n);
     free(updates);
     g_scanning_updates = 0;
     EnableWindow(g_btn_check, TRUE);
@@ -274,9 +373,20 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
     switch (msg) {
     case WM_COMMAND: {
         int id = LOWORD(wparam);
-        if (id == IDC_BTN_REFRESH) start_devices_scan(hwnd);
-        else if (id == IDC_BTN_CHECK) start_updates_scan(hwnd);
-        else if (id == IDC_BTN_INSTALL) on_install_pressed();
+        if (id == IDC_BTN_REFRESH || id == IDM_REFRESH) start_devices_scan(hwnd);
+        else if (id == IDC_BTN_CHECK || id == IDM_CHECK) start_updates_scan(hwnd);
+        else if (id == IDC_BTN_INSTALL || id == IDM_INSTALL) on_install_pressed();
+        else if (id == IDM_VIEW_DEVICES)
+            start_devices_scan(hwnd);
+        else if (id == IDM_VIEW_UPDATES)
+            start_updates_scan(hwnd);
+        else if (id == IDM_LANG_EN) set_language(hwnd, 0);
+        else if (id == IDM_LANG_ZH) set_language(hwnd, 1);
+        else if (id == IDM_EXIT) PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        else if (id == IDM_ABOUT)
+            MessageBoxW(hwnd, tr(L"whwd - Windows Hardware Detection and driver updater",
+                                 L"whwd - Windows 硬件检测与驱动更新工具"),
+                        tr(L"About whwd", L"关于 whwd"), MB_OK | MB_ICONINFORMATION);
         break;
     }
 
@@ -339,20 +449,20 @@ int WINAPI wWinMain(HINSTANCE h_instance, HINSTANCE h_prev,
     if (!RegisterClassExW(&wc)) return 1;
 
     HWND hwnd = CreateWindowExW(
-        0, L"whwd_gui_class", L"whwd - Windows Hardware Detection",
+        0, L"whwd_gui_class", L"whwd",
         WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 780, 520,
-        NULL, NULL, h_instance, NULL);
+        NULL, build_menu(), h_instance, NULL);
     if (!hwnd) return 1;
 
-    g_btn_refresh = CreateWindowW(L"BUTTON", L"Refresh devices",
+    g_btn_refresh = CreateWindowW(L"BUTTON", tr(L"Refresh devices", L"刷新设备"),
                                   WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                                   8, 8, 120, 26, hwnd, (HMENU)IDC_BTN_REFRESH,
                                   h_instance, NULL);
-    g_btn_check = CreateWindowW(L"BUTTON", L"Check updates",
+    g_btn_check = CreateWindowW(L"BUTTON", tr(L"Check updates", L"检查更新"),
                                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                                 136, 8, 120, 26, hwnd, (HMENU)IDC_BTN_CHECK,
                                 h_instance, NULL);
-    g_btn_install = CreateWindowW(L"BUTTON", L"Install",
+    g_btn_install = CreateWindowW(L"BUTTON", tr(L"Install", L"安装"),
                                   WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                                   264, 8, 100, 26, hwnd, (HMENU)IDC_BTN_INSTALL,
                                   h_instance, NULL);
@@ -364,12 +474,14 @@ int WINAPI wWinMain(HINSTANCE h_instance, HINSTANCE h_prev,
     ListView_SetExtendedListViewStyle(g_hwnd_list,
                                       LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES |
                                           LVS_EX_GROUPVIEW);
+    ListView_EnableGroupView(g_hwnd_list, TRUE);
 
     g_hwnd_status = CreateWindowW(STATUSCLASSNAMEW, NULL,
                                   WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
                                   0, 0, 0, 0, hwnd, NULL, h_instance, NULL);
 
     whwd_detect_features(&g_features);
+    set_window_title(hwnd);
     show_features();
 
     ShowWindow(hwnd, SW_SHOW);
