@@ -94,6 +94,22 @@ target_include_directories(whwd-gui PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+if(NOT WHWD_TARGET_XP)
+  target_compile_definitions(whwd-gui PRIVATE
+    _WIN32_WINNT=${WHWD_WINVER}
+    WINVER=${WHWD_WINVER}
+    UNICODE
+    _UNICODE
+  )
+else()
+  target_compile_definitions(whwd-gui PRIVATE
+    _WIN32_WINNT=0x0600
+    WINVER=0x0600
+    UNICODE
+    _UNICODE
+  )
+endif()
+
 if(MSVC)
   target_compile_options(whwd-gui PRIVATE /W4)
 endif()
