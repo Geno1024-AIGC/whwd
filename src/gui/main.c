@@ -115,7 +115,7 @@ static int group_ensure(HWND list, const char *class_name)
     if (g_group_count >= (int)(sizeof(g_group_names) / sizeof(g_group_names[0])))
         return 0;
 
-    LVGROUPW lg;
+    LVGROUP lg;
     memset(&lg, 0, sizeof(lg));
     lg.cbSize = sizeof(lg);
     lg.mask = LVGF_HEADER | LVGF_GROUPID;
