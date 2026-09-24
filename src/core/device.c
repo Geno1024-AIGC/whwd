@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <objbase.h>
 #include <setupapi.h>
+#include <devguid.h>
 
 static int wstr_copy_utf8(const WCHAR *in, char *out, size_t outsz)
 {
