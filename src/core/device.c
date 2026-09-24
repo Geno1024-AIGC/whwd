@@ -56,7 +56,8 @@ static void read_prop(HDEVINFO devs, SP_DEVINFO_DATA *did, DWORD prop,
     out[0] = 0;
 
     DWORD type = 0, size = 0;
-    if (!SetupDiGetDeviceRegistryPropertyW(devs, did, prop, &type, NULL, 0, &size)) return;
+    if (!SetupDiGetDeviceRegistryPropertyW(devs, did, prop, &type, NULL, 0, &size) &&
+        GetLastError() != ERROR_INSUFFICIENT_BUFFER) return;
     if (type != REG_SZ || size == 0) return;
 
     DWORD chars = (size + sizeof(WCHAR) - 1) / sizeof(WCHAR) + 1;
@@ -82,7 +83,8 @@ static void read_device_id(HDEVINFO devs, SP_DEVINFO_DATA *did, char *out, size_
     out[0] = 0;
 
     DWORD type = 0, size = 0;
-    if (!SetupDiGetDeviceRegistryPropertyW(devs, did, SPDRP_HARDWAREID, &type, NULL, 0, &size)) return;
+    if (!SetupDiGetDeviceRegistryPropertyW(devs, did, SPDRP_HARDWAREID, &type, NULL, 0, &size) &&
+        GetLastError() != ERROR_INSUFFICIENT_BUFFER) return;
     if (type != REG_MULTI_SZ || size == 0) return;
 
     DWORD chars = (size + sizeof(WCHAR) - 1) / sizeof(WCHAR) + 1;
