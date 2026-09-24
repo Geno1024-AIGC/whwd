@@ -163,56 +163,72 @@ int whwd_list_devices(whwd_device **out, size_t *count)
     *out = NULL;
     *count = 0;
 
-    HDEVINFO devs = SetupDiGetClassDevsW(NULL, NULL, NULL,
-                                         DIGCF_ALLCLASSES | DIGCF_PRESENT);
-    if (devs == INVALID_HANDLE_VALUE) return -2;
+    static const GUID *const k_driver_classes[] = {
+        &GUID_DEVCLASS_DISPLAY,
+        &GUID_DEVCLASS_MEDIA,
+        &GUID_DEVCLASS_NET,
+        &GUID_DEVCLASS_BLUETOOTH,
+        &GUID_DEVCLASS_SCSIADAPTER,
+        &GUID_DEVCLASS_HDC,
+        &GUID_DEVCLASS_USB,
+        &GUID_DEVCLASS_SYSTEM,
+        &GUID_DEVCLASS_MOUSE,
+        &GUID_DEVCLASS_KEYBOARD,
+    };
 
     whwd_device *arr = NULL;
     size_t n = 0;
 
-    SP_DEVINFO_DATA did;
-    memset(&did, 0, sizeof(did));
-    did.cbSize = sizeof(did);
+    for (size_t c = 0;
+         c < sizeof(k_driver_classes) / sizeof(k_driver_classes[0]); c++) {
+        HDEVINFO devs = SetupDiGetClassDevsW(k_driver_classes[c], NULL, NULL,
+                                             DIGCF_PRESENT);
+        if (devs == INVALID_HANDLE_VALUE) continue;
 
-    DWORD index = 0;
-    while (SetupDiEnumDeviceInfo(devs, index, &did)) {
-        index++;
+        SP_DEVINFO_DATA did;
+        memset(&did, 0, sizeof(did));
+        did.cbSize = sizeof(did);
 
-        whwd_device *dev = (whwd_device *)calloc(1, sizeof(whwd_device));
-        if (!dev) break;
+        DWORD index = 0;
+        while (SetupDiEnumDeviceInfo(devs, index, &did)) {
+            index++;
 
-        read_device_id(devs, &did, dev->hwid, sizeof(dev->hwid)); 
-        read_prop(devs, &did, SPDRP_FRIENDLYNAME, dev->name, sizeof(dev->name));
-        if (!dev->name[0])
-            read_prop(devs, &did, SPDRP_DEVICEDESC, dev->name, sizeof(dev->name));
-        read_prop(devs, &did, SPDRP_MFG, dev->manufacturer, sizeof(dev->manufacturer));
-        read_prop(devs, &did, SPDRP_SERVICE, dev->service, sizeof(dev->service));
-        read_class(devs, &did, dev->device_class, sizeof(dev->device_class));
+            whwd_device *dev = (whwd_device *)calloc(1, sizeof(whwd_device));
+            if (!dev) break;
 
-        WCHAR instance[WHWD_INSTANCE_MAX] = {0};
-        if (SetupDiGetDeviceInstanceIdW(devs, &did, instance,
-                                        WHWD_INSTANCE_MAX, NULL))
-            wstr_copy_utf8(instance, dev->instance_id, sizeof(dev->instance_id));
+            read_class(devs, &did, dev->device_class, sizeof(dev->device_class));
+            read_device_id(devs, &did, dev->hwid, sizeof(dev->hwid));
+            read_prop(devs, &did, SPDRP_FRIENDLYNAME, dev->name, sizeof(dev->name));
+            if (!dev->name[0])
+                read_prop(devs, &did, SPDRP_DEVICEDESC, dev->name, sizeof(dev->name));
+            read_prop(devs, &did, SPDRP_MFG, dev->manufacturer, sizeof(dev->manufacturer));
+            read_prop(devs, &did, SPDRP_SERVICE, dev->service, sizeof(dev->service));
 
-        WCHAR driver_path[512] = {0};
-        if (SetupDiGetDeviceRegistryPropertyW(devs, &did, SPDRP_DRIVER, NULL,
-                                              (BYTE *)driver_path, sizeof(driver_path), NULL)) {
-            char dp[512] = {0};
-            wstr_copy_utf8(driver_path, dp, sizeof(dp));
-            read_driver_registry(dp, dev);
-        }
+            WCHAR instance[WHWD_INSTANCE_MAX] = {0};
+            if (SetupDiGetDeviceInstanceIdW(devs, &did, instance,
+                                            WHWD_INSTANCE_MAX, NULL))
+                wstr_copy_utf8(instance, dev->instance_id, sizeof(dev->instance_id));
 
-        whwd_device *grown = (whwd_device *)realloc(arr, (n + 1) * sizeof(whwd_device));
-        if (!grown) {
+            WCHAR driver_path[512] = {0};
+            if (SetupDiGetDeviceRegistryPropertyW(devs, &did, SPDRP_DRIVER, NULL,
+                                                  (BYTE *)driver_path, sizeof(driver_path), NULL)) {
+                char dp[512] = {0};
+                wstr_copy_utf8(driver_path, dp, sizeof(dp));
+                read_driver_registry(dp, dev);
+            }
+
+            whwd_device *grown = (whwd_device *)realloc(arr, (n + 1) * sizeof(whwd_device));
+            if (!grown) {
+                free(dev);
+                break;
+            }
+            arr = grown;
+            arr[n++] = *dev;
             free(dev);
-            break;
         }
-        arr = grown;
-        arr[n++] = *dev;
-        free(dev);
-    }
 
-    SetupDiDestroyDeviceInfoList(devs);
+        SetupDiDestroyDeviceInfoList(devs);
+    }
 
     *out = arr;
     *count = n;
