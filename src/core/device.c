@@ -122,7 +122,8 @@ static void read_class(HDEVINFO devs, SP_DEVINFO_DATA *did, char *out, size_t ou
     if (CLSIDFromString(wguid, &guid) != S_OK) return;
 
     WCHAR wclass[WHWD_CLASS_MAX];
-    if (!SetupDiGetClassDescriptionW(&guid, wclass, WHWD_CLASS_MAX)) return;
+    DWORD wclass_size = WHWD_CLASS_MAX;
+    if (!SetupDiGetClassDescriptionW(&guid, wclass, wclass_size, &wclass_size)) return;
 
     wstr_copy_utf8(wclass, out, outsz);
 }
