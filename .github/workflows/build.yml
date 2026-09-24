@@ -17,13 +17,13 @@ jobs:
           - arch: x64
             cmake_arch: x64
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Configure
-        run: cmake -B build -A ${{ matrix.cmake_arch }}
+        run: cmake -B build -A ${{ matrix.cmake_arch }} -DWHWD_CI_BUILD=${{ github.run_number }} -DWHWD_CI_SHA=${{ github.sha }}
       - name: Build
         run: cmake --build build --config Release
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: whwd-${{ matrix.arch }}
           path: |
