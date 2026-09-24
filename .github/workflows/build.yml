@@ -17,13 +17,13 @@ jobs:
           - arch: x64
             cmake_arch: x64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Configure
         run: cmake -B build -A ${{ matrix.cmake_arch }}
       - name: Build
         run: cmake --build build --config Release
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: whwd-${{ matrix.arch }}
           path: |
